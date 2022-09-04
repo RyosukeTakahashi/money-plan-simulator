@@ -1,10 +1,139 @@
+import { SimulationChart } from "./../features/simulation/SimulationChart";
+import {
+  FormEventHandler,
+  MouseEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { NextPage } from "next";
 import Head from "next/head";
 import Image from "next/image";
 import styles from "../styles/Home.module.css";
+import { atom, useAtom } from "jotai";
+import {
+  useForm,
+  SubmitHandler,
+  Controller,
+  ChangeHandler,
+  useWatch,
+} from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import {
+  FormErrorMessage,
+  FormLabel,
+  FormControl,
+  Input,
+  Button,
+  Radio,
+  RadioGroup,
+  Stack,
+  Checkbox,
+} from "@chakra-ui/react";
+import {
+  Chart,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+  registerables,
+  LineController,
+  ChartType,
+} from "chart.js";
+import { Inputs, schema } from "../utils/schema";
+import {
+  balanceTransiton,
+  investmentAccumulation,
+} from "utils/balanceTransition";
+Chart.register(
+  LineController,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement
+);
+
+let renderCount = 0;
 
 const Home: NextPage = () => {
-  const hoge = 123;
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+    control,
+    getValues,
+  } = useForm<Inputs>({
+    mode: "onBlur",
+    defaultValues: {
+      userAge: 22,
+      userIncome: 10_000_000,
+      childCount: 2,
+      housingLoan: 120_000,
+      subscriptions: ["netflix"],
+    },
+    resolver: zodResolver(schema),
+  });
+  renderCount++;
+
+  const date = new Date();
+  const [charData, setChartData] = useState({
+    labels: [date.getFullYear()],
+    datasets: [
+      {
+        label: "BalanceTransition",
+        data: [4, 9],
+        borderColor: "rgb(53, 162, 235)",
+        backgroundColor: "rgba(53, 162, 235, 0.5)",
+      },
+    ],
+  });
+
+  const chartRef = useRef<Chart>(null!);
+  console.log("childcount", watch("childCount"));
+  useEffect(() => {
+    const subscription = watch((data) => {
+      const date = new Date();
+      const year = date.getFullYear();
+
+      try {
+        const userAge = z.number().parse(data.userAge);
+        const parsedData = schema.parse(data);
+        const yearsToSimulate = Array(100 - userAge)
+          .fill(0)
+          .map((element, index) => year + index);
+        // stateを更新してまうのでrerenderしてまう
+        setChartData({
+          labels: yearsToSimulate,
+          datasets: [
+            {
+              label: "BalanceTransition",
+              data: balanceTransiton(yearsToSimulate, parsedData),
+              borderColor: "rgb(53, 162, 235)",
+              backgroundColor: "rgba(53, 162, 235, 0.5)",
+            },
+            {
+              label: "InvestmentAccumulation",
+              data: investmentAccumulation(yearsToSimulate, parsedData),
+              borderColor: "rgb(255, 99, 132)",
+              backgroundColor: "rgba(255, 99, 132, 0.5)",
+            },
+          ],
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [watch]);
+
   return (
     <div className={styles.container}>
       <Head>
@@ -14,58 +143,106 @@ const Home: NextPage = () => {
       </Head>
 
       <main className={styles.main}>
-        <h1 className={styles.title}>
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
+        <div suppressHydrationWarning>{renderCount}</div>
+        <form>
+          <FormControl isInvalid={!!errors.userAge}>
+            <FormLabel htmlFor="userAge">users Age</FormLabel>
+            <Input
+              id="userAge"
+              type="number"
+              placeholder="input your age"
+              {...register("userAge", {
+                valueAsNumber: true,
+              })}
+            />
+            <FormErrorMessage>{errors.userAge?.message}</FormErrorMessage>
+          </FormControl>
 
-        <p className={styles.description}>
-          Get started by editing{" "}
-          <code className={styles.code}>pages/index.tsx</code>
-        </p>
+          <FormControl isInvalid={!!errors.userIncome}>
+            <FormLabel htmlFor="userIncome">users Income</FormLabel>
+            <Input
+              id="userIncome"
+              type="number"
+              placeholder="input your Income"
+              {...register("userIncome", {
+                valueAsNumber: true,
+              })}
+            />
+            <FormErrorMessage>{errors.userIncome?.message}</FormErrorMessage>
+          </FormControl>
 
-        <div className={styles.grid}>
-          <a href="https://nextjs.org/docs" className={styles.card}>
-            <h2>Documentation &rarr;</h2>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
+          <FormControl isInvalid={!!errors.childCount}>
+            <FormLabel htmlFor="housingLoan">child count</FormLabel>
+            <Input
+              id="childCount"
+              placeholder="input your childCount"
+              {...register("childCount", { valueAsNumber: true })}
+            />
+            <FormErrorMessage>{errors.childCount?.message}</FormErrorMessage>
+          </FormControl>
 
-          <a href="https://nextjs.org/learn" className={styles.card}>
-            <h2>Learn &rarr;</h2>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
+          {Array(watch("childCount"))
+            .fill(0)
+            .map((_, i) => {
+              return (
+                <FormControl key={i}>
+                  <FormLabel htmlFor="childCollege">
+                    child college type
+                  </FormLabel>
+                  <Input
+                    id="childCollege"
+                    placeholder="input your childCollegeType"
+                    {...register("childCollegeType")}
+                  />
+                  <FormErrorMessage>
+                    {errors.childCount?.message}
+                  </FormErrorMessage>
+                </FormControl>
+              );
+            })}
 
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className={styles.card}
-          >
-            <h2>Examples &rarr;</h2>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
+          <FormControl isInvalid={!!errors.housingLoan}>
+            <FormLabel htmlFor="housingLoan">housing Loan</FormLabel>
+            <Input
+              id="housingLoan"
+              placeholder="input your housingLoan"
+              {...register("housingLoan", { valueAsNumber: true })}
+            />
+            <FormErrorMessage>{errors.housingLoan?.message}</FormErrorMessage>
+          </FormControl>
 
-          <a
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-          >
-            <h2>Deploy &rarr;</h2>
-            <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
-        </div>
+          <Controller
+            name="childCollegeType"
+            control={control}
+            render={({ field: { onChange, value } }) => (
+              <RadioGroup onChange={onChange} value={value}>
+                <Stack direction="row">
+                  <Radio value="1">First</Radio>
+                  <Radio value="2">Second</Radio>
+                  <Radio value="3">Third</Radio>
+                </Stack>
+              </RadioGroup>
+            )}
+          />
+          <FormControl>
+            <Stack direction="row">
+              <Checkbox value="netflix" {...register("subscriptions")}>
+                Netflix
+              </Checkbox>
+              <Checkbox value="spotify" {...register("subscriptions")}>
+                Spotify
+              </Checkbox>
+            </Stack>
+          </FormControl>
+          <Button mt={4} colorScheme="teal" type="submit">
+            Submit
+          </Button>
+        </form>
       </main>
 
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{" "}
-          <span className={styles.logo}>
-            <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
-          </span>
-        </a>
-      </footer>
+      <SimulationChart chartRef={chartRef} data={charData} />
+
+      <footer className={styles.footer}></footer>
     </div>
   );
 };

@@ -45,7 +45,7 @@ import {
   LineController,
   ChartType,
 } from "chart.js";
-import { Inputs, schema } from "../utils/schema";
+import { schema } from "../utils/schema";
 import {
   balanceTransiton,
   investmentAccumulation,
@@ -60,7 +60,13 @@ Chart.register(
 
 let renderCount = 0;
 
+//テキストボックスは、onblurで変える。ラジオボタンはonchangeで変えたい（blurをonchage内で発火）
+//useWatchやgetValueに変えていく
+//いくつかラジオボタン化
+//ラジオボタンの変更で、watch変化→グラフ変化
+//共通コンポーネント化
 const Home: NextPage = () => {
+  type Inputs = z.infer<typeof schema>;
   const {
     register,
     handleSubmit,
@@ -70,17 +76,19 @@ const Home: NextPage = () => {
     getValues,
   } = useForm<Inputs>({
     mode: "onBlur",
+    shouldUnregister: true,
     defaultValues: {
       userAge: 22,
       userIncome: 10_000_000,
-      childCount: 2,
+      childCount: 1,
       housingLoan: 120_000,
+      buyOrRent: "rent",
+      // children: Array(2).fill(childAttributes),
       subscriptions: ["netflix"],
     },
     resolver: zodResolver(schema),
   });
   renderCount++;
-
   const date = new Date();
   const [charData, setChartData] = useState({
     labels: [date.getFullYear()],
@@ -93,14 +101,11 @@ const Home: NextPage = () => {
       },
     ],
   });
-
   const chartRef = useRef<Chart>(null!);
-  console.log("childcount", watch("childCount"));
   useEffect(() => {
     const subscription = watch((data) => {
       const date = new Date();
       const year = date.getFullYear();
-
       try {
         const userAge = z.number().parse(data.userAge);
         const parsedData = schema.parse(data);
@@ -126,7 +131,8 @@ const Home: NextPage = () => {
           ],
         });
       } catch (e) {
-        console.error(e);
+        console.log(data);
+        console.log(e);
       }
     });
     return () => {
@@ -134,6 +140,7 @@ const Home: NextPage = () => {
     };
   }, [watch]);
 
+  const childCount = schema.shape.childCount.safeParse(getValues("childCount"));
   return (
     <div className={styles.container}>
       <Head>
@@ -144,6 +151,7 @@ const Home: NextPage = () => {
 
       <main className={styles.main}>
         <div suppressHydrationWarning>{renderCount}</div>
+        <p>{JSON.stringify(watch(), null, 4)}</p>
         <form>
           <FormControl isInvalid={!!errors.userAge}>
             <FormLabel htmlFor="userAge">users Age</FormLabel>
@@ -172,34 +180,50 @@ const Home: NextPage = () => {
           </FormControl>
 
           <FormControl isInvalid={!!errors.childCount}>
-            <FormLabel htmlFor="housingLoan">child count</FormLabel>
+            <FormLabel htmlFor="childCount">child count</FormLabel>
             <Input
               id="childCount"
               placeholder="input your childCount"
+              type="number"
               {...register("childCount", { valueAsNumber: true })}
             />
             <FormErrorMessage>{errors.childCount?.message}</FormErrorMessage>
           </FormControl>
 
-          {Array(watch("childCount"))
-            .fill(0)
-            .map((_, i) => {
-              return (
-                <FormControl key={i}>
-                  <FormLabel htmlFor="childCollege">
-                    child college type
-                  </FormLabel>
-                  <Input
-                    id="childCollege"
-                    placeholder="input your childCollegeType"
-                    {...register("childCollegeType")}
-                  />
-                  <FormErrorMessage>
-                    {errors.childCount?.message}
-                  </FormErrorMessage>
-                </FormControl>
-              );
-            })}
+          {childCount.success &&
+            Array(childCount.data)
+              .fill(0)
+              .map((_, i: number) => {
+                return (
+                  <div key={i}>
+                    <FormControl>
+                      <FormLabel htmlFor={`ageOfUserWhenBorn${i}`}>
+                        ageOfUserWhenBorn
+                      </FormLabel>
+                      <Input
+                        id={`ageOfUserWhenBorn${i}`}
+                        type="number"
+                        defaultValue={28}
+                        placeholder="input your ageOfUserWhenBorn"
+                        {...register(`children.${i}.ageOfUserWhenBorn`, {
+                          valueAsNumber: true,
+                        })}
+                      />
+                    </FormControl>
+                    <FormControl>
+                      <FormLabel htmlFor={`bachellorType${i}`}>
+                        child college type
+                      </FormLabel>
+                      <Input
+                        id={`bachellorType${i}`}
+                        placeholder="input your bachellorType"
+                        defaultValue={"public"}
+                        {...register(`children.${i}.bachellorType`)}
+                      />
+                    </FormControl>
+                  </div>
+                );
+              })}
 
           <FormControl isInvalid={!!errors.housingLoan}>
             <FormLabel htmlFor="housingLoan">housing Loan</FormLabel>
@@ -212,14 +236,13 @@ const Home: NextPage = () => {
           </FormControl>
 
           <Controller
-            name="childCollegeType"
+            name="buyOrRent"
             control={control}
             render={({ field: { onChange, value } }) => (
               <RadioGroup onChange={onChange} value={value}>
                 <Stack direction="row">
-                  <Radio value="1">First</Radio>
-                  <Radio value="2">Second</Radio>
-                  <Radio value="3">Third</Radio>
+                  <Radio value="rent">rent</Radio>
+                  <Radio value="buy">buy</Radio>
                 </Stack>
               </RadioGroup>
             )}

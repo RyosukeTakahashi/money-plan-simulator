@@ -35,20 +35,35 @@ export const schema = z.object({
   DCexpectedAnnualInterest: z.number().default(0),
   reserveInvestment: z.number().default(1_000_000),
   reserveInvestmentAnnualInterest: z.number().default(0.03),
-
-  childCount: z.number().default(0),
-  // childcountをwatchして、childcountの数に応じて、schemaに、マージ？
-
-  // renderするフォームも、以下を変える。
-  // Array(3).fill(0).map(<Child/>)
-  // children: z.array(
-  //   z.object({
-  //     ageOfUserWhenBorn: z.string(),
-  //   })
-  // ),
-  childCollegeType: z.string().default("1"),
-  buyOrRent: z.string().default(""),
-  houseType: z.string().default(""),
+  childCount: z
+    .union([z.number().min(0).max(5).default(0), z.nan()])
+    .transform((count) => {
+      if (isNaN(count)) {
+        return 0;
+      }
+      return count;
+    }),
+  children: z
+    .union([
+      z.array(
+        //schema.shape.children.element.shape.phoneTypeで取れる
+        z.object({
+          ageOfUserWhenBorn: z.number().min(18).default(18),
+          elementarySchoolType: z.string().default("public"),
+          middleSchoolType: z.string().default("public"),
+          highSchoolType: z.string().default("public"),
+          bachellorType: z.string().default("public"),
+          masterType: z.string().default("public"),
+          remmitance: z.number().default(0),
+          phoneType: z.string().default("public"),
+          ageToStartUsingSmartphone: z.number().default(13),
+        })
+      ),
+      z.array(z.object({})),
+    ])
+    .default([]),
+  buyOrRent: z.string().default("rent"),
+  houseType: z.string().default("HighPerformance"), //光熱費に影響
   downPaymentOfHouse: z.number().default(0),
   housingLoan: z.number().default(0),
   montylyReserevedHouseRepairCost: z.number().default(0),
@@ -62,15 +77,3 @@ export const schema = z.object({
   internetConnectionPayment: z.number().default(0),
   subscriptions: z.array(z.string()).default([""]),
 });
-
-export type Inputs = z.infer<typeof schema>;
-
-export const transformedSchema = schema.transform((x) => {
-  const childCollegeType = Number(x.childCollegeType);
-  return {
-    ...x,
-    childCollegeType,
-  };
-});
-
-export type TransformedInputs = z.infer<typeof transformedSchema>;
